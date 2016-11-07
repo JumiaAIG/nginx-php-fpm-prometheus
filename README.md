@@ -15,10 +15,9 @@ $ go get -u github.com/marcelosousaalmeida/nginx-php-fpm-prometheus
 ```bash
 $ ./nginx-php-fpm-prometheus --help
 Usage of ./nginx-php-fpm-prometheus:
-  -addr string
-        IP/port for the HTTP server (default "0.0.0.0:8080")
-  -status-url string
-        PHP-FPM status URL
+  -addr="0.0.0.0:8080": IP/port for the HTTP server
+  -fpm-status-url="": PHP-FPM status URL
+  -nginx-status-url="": Nginx status URL
 
 $ ./nginx-php-fpm-prometheus -status-url "http://example.com/status" -addr "127.0.0.1:8080"
 ```
