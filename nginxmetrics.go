@@ -3,6 +3,10 @@ package main
 import (
 	"strconv"
 	"regexp"
+	"io"
+	"reflect"
+	"bytes"
+	"fmt"
 )
 
 var (
@@ -13,39 +17,40 @@ var (
 )
 
 // NewMetricsFromMatches creates a new Metrics instance and populates it with given data.
-func nginxNewMetricsFromMatches(matches [][]string) *Metrics {
-	metrics := &Metrics{}
+func nginxNewMetricsFromMatches(matches [][]string) *NginxMetrics {
+	metrics := &NginxMetrics{}
 	metrics.nginxPopulateFromMatches(matches)
 	return metrics
 }
 
-func (m *Metrics) nginxPopulateFromMatches(matches [][]string) {
+func (m *NginxMetrics) nginxPopulateFromMatches(matches [][]string) {
 	for _, match := range matches {
 		key := match[0]
 		value := match[1]
 		switch key {
 		case "active connections":
-			m.NginxActiveConnections, _ = strconv.Atoi(value)
+			m.ActiveConnections, _ = strconv.Atoi(value)
 		case "accepted connections":
-			m.NginxAcceptedConnections, _ = strconv.Atoi(value)
+			m.AcceptedConnections, _ = strconv.Atoi(value)
 		case "handled connections":
-			m.NginxHandledConnections, _ = strconv.Atoi(value)
-		case "listen queue":
-			m.NginxNumberOfRequests, _ = strconv.Atoi(value)
-		case "max listen queue":
-			m.NginxConnectionsReading, _ = strconv.Atoi(value)
-		case "listen queue len":
-			m.NginxConnectionsWriting, _ = strconv.Atoi(value)
-		case "idle processes":
-			m.NginxConnectionsWaiting, _ = strconv.Atoi(value)
+			m.HandledConnections, _ = strconv.Atoi(value)
+		case "number of requests":
+			m.NumberOfRequests, _ = strconv.Atoi(value)
+		case "connections reading":
+			m.ConnectionsReading, _ = strconv.Atoi(value)
+		case "connections writing":
+			m.ConnectionsWriting, _ = strconv.Atoi(value)
+		case "connections waiting":
+			m.ConnectionsWaiting, _ = strconv.Atoi(value)
 		case "scrape failure":
-			m.NginxScrapeFailures, _ = strconv.Atoi(value)
+			m.ScrapeFailures, _ = strconv.Atoi(value)
 		}
 
 	}
 }
 
 func nginxParseBody(body string) [][]string {
+	// http://stackoverflow.com/questions/25025467/catching-panics-in-golang
 	match1 := match1LineRegexp.FindAllStringSubmatch(string(body), -1)
 	matches := [][]string{{"active connections",match1[0][1]}}
 
@@ -63,4 +68,30 @@ func nginxParseBody(body string) [][]string {
 	matches = append(matches,[]string{"scrape failure",match4[0][1]})
 
 	return matches
+}
+
+type NginxMetrics struct {
+	ActiveConnections	int `help:"NGINX: Number of active client connections including Waiting connections." type:"gauge" name:"nginx_active_connections"`
+	AcceptedConnections	int `help:"NGINX: Total number of accepted client connections" type:"counter" name:"nginx_accepted_connections"`
+	HandledConnections	int `help:"NGINX: Total number of handled connections. Generally, the parameter value is the same as accepts unless some resource limits have been reached" type:"counter" name:"nginx_handled_connections"`
+	NumberOfRequests	int `help:"NGINX: Total number of client requests" type:"counter" name:"nginx_number_of_requests"`
+	ConnectionsReading	int `help:"NGINX: Number of connections where nginx is reading the request header" type:"gauge" name:"nginx_connections_reading"`
+	ConnectionsWriting	int `help:"NGINX: Number of connections where nginx is writing the response back to the client" type:"gauge" name:"nginx_connections_writing"`
+	ConnectionsWaiting	int `help:"NGINX: Number of idle client connections waiting for a request" type:"gauge" name:"nginx_connections_waiting"`
+	ScrapeFailures    	int `help:"NGINX: Number of errors while scraping Nginx" type:"counter" name:"nginx_exporter_scrape_failures_total"` //gauge?
+}
+
+func (m *NginxMetrics) NginxWriteTo(w io.Writer) {
+	typ := reflect.TypeOf(*m)
+	val := reflect.ValueOf(*m)
+	buf := &bytes.Buffer{}
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		name := field.Tag.Get("name")
+		buf.WriteString(fmt.Sprintf("# HELP %s %s\n", name, field.Tag.Get("help")))
+		buf.WriteString(fmt.Sprintf("# TYPE %s %s\n", name, field.Tag.Get("type")))
+		buf.WriteString(fmt.Sprintf("%s %d\n", name, val.Field(i).Int()))
+	}
+
+	io.Copy(w, buf)
 }

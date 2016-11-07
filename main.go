@@ -37,16 +37,16 @@ func main() {
 			Addr:        *addr,
 			ReadTimeout: time.Duration(5) * time.Second,
 			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				
+
 				fpmBody := httpRequest(fpmStatusURL)
 				fpmBodyParsed := fpmParseBody(fpmBody)
 				fpmMetrics := fpmNewMetricsFromMatches(fpmBodyParsed)
-				fpmMetrics.WriteTo(w)
+				fpmMetrics.FpmWriteTo(w)
 
 				nginxBody := httpRequest(nginxStatusURL)
 				nginxBodyParsed := nginxParseBody(nginxBody)
 				nginxMetrics := nginxNewMetricsFromMatches(nginxBodyParsed)
-				nginxMetrics.WriteTo(w)
+				nginxMetrics.NginxWriteTo(w)
 			}),
 		},
 	}

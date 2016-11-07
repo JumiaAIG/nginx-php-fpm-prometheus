@@ -3,6 +3,10 @@ package main
 import (
 	"strconv"
 	"regexp"
+	"io"
+	"reflect"
+	"bytes"
+	"fmt"
 )
 
 var (
@@ -10,41 +14,41 @@ var (
 )
 
 // NewMetricsFromMatches creates a new Metrics instance and populates it with given data.
-func fpmNewMetricsFromMatches(matches [][]string) *Metrics {
-	metrics := &Metrics{}
+func fpmNewMetricsFromMatches(matches [][]string) *FpmMetrics {
+	metrics := &FpmMetrics{}
 	metrics.fpmPopulateFromMatches(matches)
 	return metrics
 }
 
-func (m *Metrics) fpmPopulateFromMatches(matches [][]string) {
+func (m *FpmMetrics) fpmPopulateFromMatches(matches [][]string) {
 	for _, match := range matches {
 		key := match[1]
 		value := match[2]
 		switch key {
 		case "start since":
-			m.FpmStartSince, _ = strconv.Atoi(value)
+			m.StartSince, _ = strconv.Atoi(value)
 		case "accepted conn":
-			m.FpmAcceptedConn, _ = strconv.Atoi(value)
+			m.AcceptedConn, _ = strconv.Atoi(value)
 		case "listen queue":
-			m.FpmListenQueue, _ = strconv.Atoi(value)
+			m.ListenQueue, _ = strconv.Atoi(value)
 		case "max listen queue":
-			m.FpmMaxListenQueue, _ = strconv.Atoi(value)
+			m.MaxListenQueue, _ = strconv.Atoi(value)
 		case "listen queue len":
-			m.FpmListenQueueLength, _ = strconv.Atoi(value)
+			m.ListenQueueLength, _ = strconv.Atoi(value)
 		case "idle processes":
-			m.FpmIdleProcesses, _ = strconv.Atoi(value)
+			m.IdleProcesses, _ = strconv.Atoi(value)
 		case "active processes":
-			m.FpmActiveProcesses, _ = strconv.Atoi(value)
+			m.ActiveProcesses, _ = strconv.Atoi(value)
 		case "total processes":
-			m.FpmTotalProcesses, _ = strconv.Atoi(value)
+			m.TotalProcesses, _ = strconv.Atoi(value)
 		case "max active processes":
-			m.FpmMaxActiveProcesses, _ = strconv.Atoi(value)
+			m.MaxActiveProcesses, _ = strconv.Atoi(value)
 		case "max children reached":
-			m.FpmMaxChildrenReached, _ = strconv.Atoi(value)
+			m.MaxChildrenReached, _ = strconv.Atoi(value)
 		case "slow requests":
-			m.FpmSlowRequests, _ = strconv.Atoi(value)
+			m.SlowRequests, _ = strconv.Atoi(value)
 		case "scrape failure":
-			m.FpmScrapeFailures, _ = strconv.Atoi(value)
+			m.ScrapeFailures, _ = strconv.Atoi(value)
 		}
 
 	}
@@ -53,4 +57,34 @@ func (m *Metrics) fpmPopulateFromMatches(matches [][]string) {
 func fpmParseBody(body string) [][]string {
 	matches := fpmStatusLineRegexp.FindAllStringSubmatch(string(body), -1)
 	return matches
+}
+
+type FpmMetrics struct {
+	StartSince         int `help:"FPM: Seconds since FPM start" type:"counter" name:"php_fpm_start_since"`
+	AcceptedConn       int `help:"FPM: Total of accepted connections" type:"counter" name:"php_fpm_accepted_conn"`
+	ListenQueue        int `help:"FPM: Number of connections that have been initiated but not yet accepted" type:"gauge" name:"php_fpm_listen_queue"`
+	MaxListenQueue     int `help:"FPM: Max. connections the listen queue has reached since FPM start" type:"counter" name:"php_fpm_max_listen_queue"`
+	ListenQueueLength  int `help:"FPM: Maximum number of connections that can be queued" type:"gauge" name:"php_fpm_listen_queue_length"`
+	IdleProcesses      int `help:"FPM: Idle process count" type:"gauge" name:"php_fpm_idle_processes"`
+	ActiveProcesses    int `help:"FPM: Active process count" type:"gauge" name:"php_fpm_active_processes"`
+	TotalProcesses     int `help:"FPM: Total process count" type:"gauge" name:"php_fpm_total_processes"`
+	MaxActiveProcesses int `help:"FPM: Maximum active process count" type:"counter" name:"php_fpm_max_active_processes"`
+	MaxChildrenReached int `help:"FPM: Number of times the process limit has been reached" type:"counter" name:"php_fpm_max_children_reached"`
+	SlowRequests       int `help:"FPM: Number of requests that exceed request_slowlog_timeout" type:"counter" name:"php_fpm_slow_requests"`
+	ScrapeFailures     int `help:"FPM: Number of errors while scraping php_fpm" type:"counter" name:"php_fpm_exporter_scrape_failures_total"` //gauge?
+}
+
+func (m *FpmMetrics) FpmWriteTo(w io.Writer) {
+	typ := reflect.TypeOf(*m)
+	val := reflect.ValueOf(*m)
+	buf := &bytes.Buffer{}
+	for i := 0; i < typ.NumField(); i++ {
+		field := typ.Field(i)
+		name := field.Tag.Get("name")
+		buf.WriteString(fmt.Sprintf("# HELP %s %s\n", name, field.Tag.Get("help")))
+		buf.WriteString(fmt.Sprintf("# TYPE %s %s\n", name, field.Tag.Get("type")))
+		buf.WriteString(fmt.Sprintf("%s %d\n", name, val.Field(i).Int()))
+	}
+
+	io.Copy(w, buf)
 }
