@@ -7,7 +7,7 @@ Simple [PHP-FPM](http://php.net/manual/en/install.fpm.php) and [NGINX](https://w
 If you are using Go 1.6+ (or 1.5 with the `GO15VENDOREXPERIMENT=1` environment variable), you can install `php-fpm-prometheus` with the following command:
 
 ```bash
-$ go get -u github.com/marcelosousaalmeida/nginx-php-fpm-prometheus
+$ go get -u github.com/marceloalmeida/nginx-php-fpm-prometheus
 ```
 
 ## Usage

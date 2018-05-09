@@ -2,15 +2,15 @@ package main
 
 import (
 	"flag"
-	"log"
 	"gopkg.in/tylerb/graceful.v1"
-	"time"
+	"log"
 	"net/http"
+	"time"
 )
 
 var (
-	fpmStatusURL     = ""
-	nginxStatusURL   = ""
+	fpmStatusURL   = ""
+	nginxStatusURL = ""
 )
 
 func main() {
